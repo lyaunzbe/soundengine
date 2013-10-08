@@ -1,0 +1,6 @@
+#!/bin/bash
+
+if [$@ != 2]
+  then
+    echo "Improper command-line usage. Correct use is './p4500 <pathname> <pathname>'"
+fi
