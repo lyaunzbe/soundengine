@@ -24,12 +24,13 @@ def main(file1, file2):
     freqs2 = np.fft.fftfreq(len(w2))
     # need to use some other comparison method than np.any()
     # Also we need serious print statements
-    if w1 is w2 or freqs1 is freqs2:
-      print "MATCH: ", file1, file2, " 100%"
-    elif w1 in w2 or w2 in w1:
-      print "MATCH, BUT, HONESTLY, IT COULD BE ANYWHERE FROM 0 TO 100% (NON INCLUSIVE), SO TAKE FROM THAT WHAT YOU WILL"
+    #compare(freqs1, freqs2, w1, w2)
+    x = set(w1)
+    y = set(w2)
+    if x.issubset(y) or y.issubset(x):
+      print "MATCH"
     else:
-      print "NO MATCH. JUST LIKE YOU AND EVERYBODY YOU'VE EVER DATED."
+      print "NO MATCH"
   except (wave.Error):
     print "Improper command line use.  Both files must be WAVE type."
 
@@ -51,7 +52,7 @@ def compare(f1, f2, w1, w2):
 
 if __name__ == '__main__':
   if len(sys.argv) != 3:
-    print 'Error', sys.argv
+    print 'Error: Proper command line usage is "./p4500 <pathname> <pathname>"\n'
   else:
     main(sys.argv[1], sys.argv[2])
 
