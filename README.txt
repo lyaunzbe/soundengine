@@ -14,3 +14,11 @@ software's executable and executing a command of the following form:
 This software is written with the Python programming langauge and 
 depends on the following libraries: numpy, wave and a few minor 
 standard libraries (sys, struct).
+
+To improve on our prototype the following changes will be made:
+ 1) Run FFT on windowed segments instead of the whole file.
+ 2) Compute the Mel-frequency cepstral coefficients to extract features
+    from the file to obtain an audio fingerprint.
+ 3) Compare those fingerprints to find any possible matches.
+ 4) Expand our program to handle different types of audio files.
+ 6) Remove any egregiously inefficient code.
