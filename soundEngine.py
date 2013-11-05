@@ -12,83 +12,93 @@ Eduardo Romeiro
 import sys, wave, struct, math, subprocess
 import numpy as np
 
+# Path to LAME executable in the CS4500 course directory
 LAME = '/course/cs4500f13/bin/lame'
 
-# Read in both files and extract the number of audio frames, frame
-# rate, and read all audio frames, then close the file and perform
-# a Fast Fourier Transform on the files
+
 def main(file1, file2):
-    # If either file1 or file2 aren't WAVE, wave.open() throws an error
+  sound1 = openFile(file1)
+  sound2 = openFile(file2)
+  getFileMetadata(sound1, sound2)
+
+
+# Given a file path, try to read the file using the wave module.
+# If that fails, try converting the file using the provided LAME executable
+# If THAT fails, then the file is neither an MP3 file nor a WAVE file, and
+# an error should be thrown
+def openFile(fileName):
+  # Try opening the file using the wave module
+  try:
+    sound = wave.open(fileName, 'r')
+  # If the wave module cannot open the file, try converting to WAVE using
+  # the provided LAME executable
+  except (wave.Error):
     try:
-      sound1 = wave.open(file1, 'r')
-    except (wave.Error):
-      try:
-        command = LAME + ' ' + file1 + ' /tmp/sound1.wav'
-        sound1 = subprocess.check_call(command)
-        # TODO: read new file as WAVE
-      except (CalledProcessError):
-        sys.stderr.write('ERROR: Improper file type.  Both files must be WAVE or MP3.\n')
-        sys.exit(-1)
+      command = [LAME, fileName, ' /tmp/sound.wav']
+      process = subprocess.check_call(command)
+    except (subprocess.CalledProcessError):
+      sys.stderr.write('ERROR: Improper file type.')
+      sys.stderr.write('Both files must be WAVE or MP3.\n')
+      sys.exit(-1)
     try:
-      sound2 = wave.open(file2, 'r')
+      sound = wave.open('/tmp/sound.wav', 'r')
     except (wave.Error):
-      try:
-        command = LAME + ' ' + file1 + ' /tmp/sound2.wav'
-        sound1 = subprocess.check_call(command)
-        # TODO: read new file as WAVE
-      except (CalledProcessError):
-        sys.stderr.write('ERROR: Improper file type.  Both files must be WAVE or MP3.\n')
-        sys.exit(-1) 
-    # Get frames of length n
-    size1 = sound1.getnframes()
-    size2 = sound2.getnframes()
-    # read number of frames of size n
-    data1 = sound1.readframes(size1)
-    data2 = sound2.readframes(size2)
-    #instantiate some framerates
-    frate1 = sound1.getframerate()
-    frate2 = sound2.getframerate()
-    #close audio files 
-    sound1.close()
-    sound2.close()
-    #Unpack strings into an array of values
-    data1 = struct.unpack('{n}h'.format(n=len(data1)/2), data1)
-    data2 = struct.unpack('{n}h'.format(n=len(data2)/2), data2)
-    # Size of frame in samples. 30 ms frame size
-    samplesPerFrame1 = 0.03*frate1
-    samplesPerFrame2 = 0.03*frate2
-    framedSignal1 = []
-    framedSignal2 = []
-    i = 0
-    # We want a quarter of the frame size to overlap for each signal
-    overlap1 = samplesPerFrame1 * 0.25
-    overlap2 = samplesPerFrame2 * 0.25
-    # Frame signals
-    while i < len(data1):
-      framedSignal1.append(data1[i:int(i + samplesPerFrame1)])
-      i = int(i + samplesPerFrame1 - overlap1)
-    j = 0
-    while j < len(data1):
-      framedSignal2.append(data2[j:int(j + samplesPerFrame2)])
-      j = int(j + samplesPerFrame2 - overlap2)
-    #Calculate FFT values from framed signals
-    # Setup hamming window 
-    hammingWindow1 = np.hamming(samplesPerFrame1)
-    hammingWindow2 = np.hamming(samplesPerFrame2)
-    # Apply the hamming window to each signal
-    hammedSignal1 = applyHammingWindow(framedSignal1, hammingWindow1)
-    hammedSignal2 = applyHammingWindow(framedSignal2, hammingWindow2)
-    # Get the Fourier Transform and power spectrum of each signal
-    ffts1, powerSpectrum1 = getFFTandPower(hammedSignal1)
-    ffts2, powerSpectrum2 = getFFTandPower(hammedSignal2)
-    #compareEuclid(ffts1, ffts2)
-    #compareEuclid(powerSpectrum1, powerSpectrum2)
-    frameFrequencies1 = np.fft.fftfreq(int(samplesPerFrame1))
-    frameFrequencies2 = np.fft.fftfreq(int(samplesPerFrame2))
-    compare(ffts1[0], ffts2[0], frameFrequencies1, frameFrequencies2)
-    melFilterBank = filterbank(20, len(powerSpectrum1[0]), frate1)
-    print np.shape(melFilterBank)
-    print np.shape(powerSpectrum1[0])
+      sys.stderr.write('ERROR: Converted file not readable\n')
+      sys.exit(-1)
+  return sound
+  
+
+def getFileMetadata(sound1, sound2):
+  # Get frames of length n
+  size1 = sound1.getnframes()
+  size2 = sound2.getnframes()
+  # read number of frames of size n
+  data1 = sound1.readframes(size1)
+  data2 = sound2.readframes(size2)
+  #instantiate some framerates
+  frate1 = sound1.getframerate()
+  frate2 = sound2.getframerate()
+  #close audio files 
+  sound1.close()
+  sound2.close()
+  #Unpack strings into an array of values
+  data1 = struct.unpack('{n}h'.format(n=len(data1)/2), data1)
+  data2 = struct.unpack('{n}h'.format(n=len(data2)/2), data2)
+  # Size of frame in samples. 30 ms frame size
+  samplesPerFrame1 = 0.03*frate1
+  samplesPerFrame2 = 0.03*frate2
+  framedSignal1 = []
+  framedSignal2 = []
+  i = 0
+  # We want a quarter of the frame size to overlap for each signal
+  overlap1 = samplesPerFrame1 * 0.25
+  overlap2 = samplesPerFrame2 * 0.25
+  # Frame signals
+  while i < len(data1):
+    framedSignal1.append(data1[i:int(i + samplesPerFrame1)])
+    i = int(i + samplesPerFrame1 - overlap1)
+  j = 0
+  while j < len(data1):
+    framedSignal2.append(data2[j:int(j + samplesPerFrame2)])
+    j = int(j + samplesPerFrame2 - overlap2)
+  #Calculate FFT values from framed signals
+  # Setup hamming window 
+  hammingWindow1 = np.hamming(samplesPerFrame1)
+  hammingWindow2 = np.hamming(samplesPerFrame2)
+  # Apply the hamming window to each signal
+  hammedSignal1 = applyHammingWindow(framedSignal1, hammingWindow1)
+  hammedSignal2 = applyHammingWindow(framedSignal2, hammingWindow2)
+  # Get the Fourier Transform and power spectrum of each signal
+  ffts1, powerSpectrum1 = getFFTandPower(hammedSignal1)
+  ffts2, powerSpectrum2 = getFFTandPower(hammedSignal2)
+  #compareEuclid(ffts1, ffts2)
+  #compareEuclid(powerSpectrum1, powerSpectrum2)
+  frameFrequencies1 = np.fft.fftfreq(int(samplesPerFrame1))
+  frameFrequencies2 = np.fft.fftfreq(int(samplesPerFrame2))
+  compare(ffts1[0], ffts2[0], frameFrequencies1, frameFrequencies2)
+  melFilterBank = filterbank(20, len(powerSpectrum1[0]), frate1)
+  print np.shape(melFilterBank)
+  print np.shape(powerSpectrum1[0])
 
 
 def getFFTandPower(signal):
@@ -129,12 +139,12 @@ def filterbank(nfilt=20,nfft=512,samplerate=44100,lfreq=0,hfreq=None):
 
   for x in xrange(0, nfilt):
     for y in xrange(int(fftbin[x]),int(fftbin[x+1])):
-      #print (y - fftbin[x])/(fftbin[x+1]-fftbin[x])
       fbank[x,y] = (y - fftbin[x])/(fftbin[x+1]-fftbin[x])
     for y in xrange(int(fftbin[x+1]),int(fftbin[x+2])):
       fbank[x,y] = (fftbin[x+2]-y)/(fftbin[x+2]-fftbin[x+1])
   return fbank
- 
+
+# Convert 
 def freqToMel(freq):
   return 2595 * np.log10(1+freq/700.0)
 
