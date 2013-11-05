@@ -1,14 +1,14 @@
 #!/bin/bash
 
-./p4500 Sounds/x1.wav Sounds/x2.wav
-./p4500 Sounds/x1.wav Sounds/x3.wav
-./p4500 Sounds/x3.wav Sounds/x2.wav
-./p4500 Sounds/x4.wav Sounds/x5.wav
-./p4500 Sounds/x4.wav Sounds/x6.wav
-./p4500 Sounds/x5.wav Sounds/x6.wav
-./p4500 Sounds/x7.wav Sounds/x8.wav
-./p4500 Sounds/x7.wav Sounds/x9.wav
-./p4500 Sounds/x8.wav Sounds/x9.wav
-./p4500 Sounds/x10.wav Sounds/x11.wav
-./p4500 Sounds/x11.wav Sounds/x12.wav
+./p4500 -f /course/cs4500f13/Assignments/A4/x1.wav -f /course/cs4500f13/Assignments/A4/x2.wav
+./p4500 -f /course/cs4500f13/Assignments/A4/x1.wav -f /course/cs4500f13/Assignments/A4/x3.wav
+./p4500 -f /course/cs4500f13/Assignments/A4/x3.wav -f /course/cs4500f13/Assignments/A4/x2.wav
+./p4500 -f /course/cs4500f13/Assignments/A4/x4.wav -f /course/cs4500f13/Assignments/A4/x5.wav
+./p4500 -f /course/cs4500f13/Assignments/A4/x4.wav -f /course/cs4500f13/Assignments/A4/x6.wav
+./p4500 -f /course/cs4500f13/Assignments/A4/x5.wav -f /course/cs4500f13/Assignments/A4/x6.wav
+./p4500 -f /course/cs4500f13/Assignments/A4/x7.wav -f /course/cs4500f13/Assignments/A4/x8.wav
+./p4500 -f /course/cs4500f13/Assignments/A4/x7.wav -f /course/cs4500f13/Assignments/A4/x9.wav
+./p4500 -f /course/cs4500f13/Assignments/A4/x8.wav -f /course/cs4500f13/Assignments/A4/x9.wav
+./p4500 -f /course/cs4500f13/Assignments/A4/x10.wav -f /course/cs4500f13/Assignments/A4/x11.wav
+./p4500 -f /course/cs4500f13/Assignments/A4/x11.wav -f /course/cs4500f13/Assignments/A4/x12.wav
 
