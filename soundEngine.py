@@ -34,11 +34,11 @@ def openFile(fileName):
   # the provided LAME executable
   except (wave.Error):
     try:
-      command = [LAME, fileName, ' /tmp/sound.wav']
+      command = [LAME, fileName, '/tmp/sound.wav']
       process = subprocess.check_call(command)
     except (subprocess.CalledProcessError):
       sys.stderr.write('ERROR: Improper file type.')
-      sys.stderr.write('Both files must be WAVE or MP3.\n')
+      sys.stderr.write(' Both files must be WAVE or MP3.\n')
       sys.exit(-1)
     try:
       sound = wave.open('/tmp/sound.wav', 'r')
@@ -127,7 +127,7 @@ def applyHammingWindow(signal, hammingWindow):
   return result
 
 # Computer the Mel-Frequency filterbank.  Once that is done, it can be
-# applied to each window to get the Mel-Frequency Cepstral Coefficients
+# applied to each frame to get the Mel-Frequency Cepstral Coefficients
 # of each frame
 def filterbank(nfilt=20,nfft=512,samplerate=44100,lfreq=0,hfreq=None):
   hfreq = hfreq or (samplerate/2)
@@ -135,9 +135,7 @@ def filterbank(nfilt=20,nfft=512,samplerate=44100,lfreq=0,hfreq=None):
   lmel = freqToMel(lfreq)
   hmel = freqToMel(hfreq)
   melpts = np.linspace(lmel, hmel, nfilt+2)
-  #print melpts
   fftbin = np.floor((nfft+1)*melToFreq(melpts)/samplerate)
-  #print fftbin
   fbank = np.zeros([nfilt, nfft])
 
   for x in xrange(0, nfilt):
@@ -147,12 +145,24 @@ def filterbank(nfilt=20,nfft=512,samplerate=44100,lfreq=0,hfreq=None):
       fbank[x,y] = (fftbin[x+2]-y)/(fftbin[x+2]-fftbin[x+1])
   return fbank
 
-# Convert 
+# Convert the given frequency to its mel-scale equivalent
 def freqToMel(freq):
   return 2595 * np.log10(1+freq/700.0)
 
+# Convert a value on the mel-scale to its equivalent frequency
 def melToFreq(mel):
   return 700 * (10**(mel / 2595.0 - 1))
+
+# Given two sets of MFCC values, compute the euclidean distances
+# between each signal frame and declare a match or not
+def compareDistances(signal1, signal2):
+  distances = compareEuclid(signal1, signal2)
+  print distances
+  if sum(distances) < 100000:
+    print 'MATCH'
+  else:
+    print 'NO MATCH'
+  sys.exit(0)
 
 # Input: two two-dimensional arrays of equal length
 # Compute the euclidean distance between each sub-array
@@ -165,13 +175,21 @@ def compareEuclid(ray1, ray2):
   print result
 
 # Compute the euclidean distance between two arrays
+# If the lists are of unequal length, compute the euclidean distance
+# between only the first n elements, where n is the length of the shorter
+# array
 def eDist(vec1, vec2):
   result = 0
-  if len(vec1) != len(vec2):
-    return -1
-  for i in range(len(vec1)):
-    dist = (vec1[i] - vec2[i]) ** 2
-    result = result + dist
+  length1 = len(vec1)
+  length2 = len(vec2)
+  if length1 > length2:
+    for i in range(len(vec2)):
+      dist = (vec1[i] - vec2[i]) ** 2
+      result = result + dist
+  else:
+    for i in range(len(vec1)):
+      dist = (vec1[i] - vec2[i]) ** 2
+      result = result + dist
   return result
 
 # Compare two sets of FFT and corresponding frequencies
@@ -198,11 +216,13 @@ def compare(w1, w2, f1, f2):
 
 if __name__ == '__main__':
   if len(sys.argv) != 5:
-    sys.stderr.write('ERROR: Proper command line usage is "./p4500 -f <pathname> -f <pathname>"')
+    sys.stderr.write('ERROR: Proper command line usage is')
+    sys.stderr.write(' "./p4500 -f <pathname> -f <pathname>"\n')
     sys.exit(-1)
   else:
     if sys.argv[1] != '-f' or sys.argv[3] != '-f':
-      sys.stderr.write('ERROR: Proper command line usage is "./p4500 -f <pathname> -f <pathname>')
+      sys.stderr.write('ERROR: Proper command line usage is')
+      sys.stderr.write(' "./p4500 -f <pathname> -f <pathname>"\n')
       sys.exit(-1)
     else:
       main(sys.argv[2], sys.argv[4])
