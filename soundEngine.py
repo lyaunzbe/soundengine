@@ -11,6 +11,7 @@ Eduardo Romeiro
 
 import sys, wave, struct, math, subprocess
 import numpy as np
+from scipy.fftpack import dct
 
 # Path to LAME executable in the CS4500 course directory
 LAME = '/course/cs4500f13/bin/lame'
@@ -79,16 +80,38 @@ def getFileMetadata(sound1, sound2):
   # Get the Fourier Transform and power spectrum of each signal
   ffts1, powerSpectrum1 = getFFTandPower(hammedSignal1)
   ffts2, powerSpectrum2 = getFFTandPower(hammedSignal2)
+  # Get the mel filterbanks for each power spectrum
+  melFilterBank1 = filterbank(20, len(powerSpectrum1[0]), frate1)
+  melFilterBank2 = filterbank(20, len(powerSpectrum2[0]), frate2)
+  # Apply the mel filterbank
+  filteredSpectrum1 = applyMelFilterBank(powerSpectrum1, melFilterBank1)
+  filteredSpectrum2 = applyMelFilterBank(powerSpectrum2, melFilterBank2)
+  # Apply a discrete cosine transform
+  mfcc1 = applyDCT(filteredSpectrum1, 12);
+  mfcc2 = applyDCT(filteredSpectrum2, 12);
+  # Apply filter to power spectrums to create filtered spectrums
   #compareEuclid(ffts1, ffts2)
   #compareEuclid(powerSpectrum1, powerSpectrum2)
-  frameFrequencies1 = np.fft.fftfreq(int(samplesPerFrame1))
-  frameFrequencies2 = np.fft.fftfreq(int(samplesPerFrame2))
+  #frameFrequencies1 = np.fft.fftfreq(int(samplesPerFrame1))
+  #frameFrequencies2 = np.fft.fftfreq(int(samplesPerFrame2))
   #compare(ffts1[0], ffts2[0], frameFrequencies1, frameFrequencies2)
-  melFilterBank = filterbank(20, len(powerSpectrum1[0]), frate1)
-  print np.shape(melFilterBank)
-  print np.dot(melFilterBank, powerSpectrum1[0])
 
+# Given a power spectrum and a mel filterbank, apply the mel filter bank and
+# then return the log of the result
+def applyMelFilterBank(ps, fb):
+  filteredSpectrum = []
+  for x in xrange(0, len(ps)):
+    filteredSpectrum.append(np.dot(fb, ps[x]))
+  return np.log10(filteredSpectrum)
 
+# Given a filtered spectrum and a number of cepstrum, applies the
+# DCT to the filtered spectrum, but only keeps num amount of results.
+def applyDCT(fs, num):
+  mfcc = []
+  for x in xrange(0, len(fs)):
+    mfcc.append(dct(fs[x][4:], norm='ortho')[:num])
+  return mfcc 
+ 
 # Given a signal and number of samples per frame, break up the signal
 # into separate frames, with a quarter of each frame overlapping with
 # adjacent frames
