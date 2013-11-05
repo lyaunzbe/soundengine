@@ -49,7 +49,7 @@ def openFile(fileName):
   
 
 def getFileMetadata(sound1, sound2):
-  # Get frames of length n
+  # Get the total number of samples from the file
   size1 = sound1.getnframes()
   size2 = sound2.getnframes()
   # read number of frames of size n
@@ -58,29 +58,17 @@ def getFileMetadata(sound1, sound2):
   #instantiate some framerates
   frate1 = sound1.getframerate()
   frate2 = sound2.getframerate()
-  #close audio files 
+  # Close audio files 
   sound1.close()
   sound2.close()
-  #Unpack strings into an array of values
+  # Unpack strings into an array of values
   data1 = struct.unpack('{n}h'.format(n=len(data1)/2), data1)
   data2 = struct.unpack('{n}h'.format(n=len(data2)/2), data2)
   # Size of frame in samples. 30 ms frame size
   samplesPerFrame1 = 0.03*frate1
   samplesPerFrame2 = 0.03*frate2
-  framedSignal1 = []
-  framedSignal2 = []
-  i = 0
-  # We want a quarter of the frame size to overlap for each signal
-  overlap1 = samplesPerFrame1 * 0.25
-  overlap2 = samplesPerFrame2 * 0.25
-  # Frame signals
-  while i < len(data1):
-    framedSignal1.append(data1[i:int(i + samplesPerFrame1)])
-    i = int(i + samplesPerFrame1 - overlap1)
-  j = 0
-  while j < len(data1):
-    framedSignal2.append(data2[j:int(j + samplesPerFrame2)])
-    j = int(j + samplesPerFrame2 - overlap2)
+  framedSignal1 = frameSignal(data1, samplesPerFrame1)
+  framedSignal2 = frameSignal(data2, samplesPerFrame2)
   #Calculate FFT values from framed signals
   # Setup hamming window 
   hammingWindow1 = np.hamming(samplesPerFrame1)
@@ -95,12 +83,27 @@ def getFileMetadata(sound1, sound2):
   #compareEuclid(powerSpectrum1, powerSpectrum2)
   frameFrequencies1 = np.fft.fftfreq(int(samplesPerFrame1))
   frameFrequencies2 = np.fft.fftfreq(int(samplesPerFrame2))
-  compare(ffts1[0], ffts2[0], frameFrequencies1, frameFrequencies2)
+  #compare(ffts1[0], ffts2[0], frameFrequencies1, frameFrequencies2)
   melFilterBank = filterbank(20, len(powerSpectrum1[0]), frate1)
   print np.shape(melFilterBank)
   print np.shape(powerSpectrum1[0])
+  print "dunn"
 
+# Given a signal and number of samples per frame, break up the signal
+# into separate frames, with a quarter of each frame overlapping with
+# adjacent frames
+def frameSignal(signal, samplesPerFrame):
+  i = 0
+  # We want to overlap each frame with a quarter of the frame size
+  overlap = samplesPerFrame * 0.25
+  framedSignal = []
+  length = len(signal)
+  while i < length:
+    framedSignal.append(signal[i:int(i + samplesPerFrame)])
+    i = int(i + samplesPerFrame - overlap)
+  return framedSignal
 
+# Compute the Fourier transform and power spectrum of a given framed signal
 def getFFTandPower(signal):
   fftValues, powerValues = [], []
   for frame in signal:
@@ -193,12 +196,9 @@ def compare(w1, w2, f1, f2):
     print "NO MATCH"
   sys.exit(0)
 
-def exit(val):
-  return val
-
 if __name__ == '__main__':
   if len(sys.argv) != 5:
-    sys.stderr.write('ERROR: Proper command line usage is "./p4500 -f <pathname> -f <pathname>"\n')
+    sys.stderr.write('ERROR: Proper command line usage is "./p4500 -f <pathname> -f <pathname>"')
     sys.exit(-1)
   else:
     if sys.argv[1] != '-f' or sys.argv[3] != '-f':
