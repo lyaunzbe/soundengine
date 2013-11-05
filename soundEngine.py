@@ -95,10 +95,10 @@ def getFileMetadata(sound1, sound2):
   #compareEuclid(powerSpectrum1, powerSpectrum2)
   frameFrequencies1 = np.fft.fftfreq(int(samplesPerFrame1))
   frameFrequencies2 = np.fft.fftfreq(int(samplesPerFrame2))
-  compare(ffts1[0], ffts2[0], frameFrequencies1, frameFrequencies2)
+  #compare(ffts1[0], ffts2[0], frameFrequencies1, frameFrequencies2)
   melFilterBank = filterbank(20, len(powerSpectrum1[0]), frate1)
   print np.shape(melFilterBank)
-  print np.shape(powerSpectrum1[0])
+  print np.dot(melFilterBank, powerSpectrum1[0])
 
 
 def getFFTandPower(signal):
@@ -135,7 +135,7 @@ def filterbank(nfilt=20,nfft=512,samplerate=44100,lfreq=0,hfreq=None):
   #print melpts
   fftbin = np.floor((nfft+1)*melToFreq(melpts)/samplerate)
   #print fftbin
-  fbank = np.zeros([nfilt, nfft/2+1])
+  fbank = np.zeros([nfilt, nfft])
 
   for x in xrange(0, nfilt):
     for y in xrange(int(fftbin[x]),int(fftbin[x+1])):
