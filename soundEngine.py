@@ -7,8 +7,6 @@ Eduardo Romeiro
 """
 
 
-# TODO: fix MFCC/filterbank.  Properly compare values
-
 import sys, wave, struct, math, subprocess
 import numpy as np
 from scipy.fftpack import dct
@@ -17,11 +15,53 @@ from scipy.fftpack import dct
 LAME = '/course/cs4500f13/bin/lame'
 
 
+
+# Main method for comparing two given files
 def main(file1, file2):
+  # Open the file described by the given path
   sound1 = openFile(file1)
   sound2 = openFile(file2)
-  getFileMetadata(sound1, sound2)
-
+  # Get the total number of samples from the file
+  size1 = sound1.getnframes()
+  size2 = sound2.getnframes()
+  # read number of frames of size n
+  data1 = sound1.readframes(size1)
+  data2 = sound2.readframes(size2)
+  #instantiate the framerates
+  frate1 = sound1.getframerate()
+  frate2 = sound2.getframerate()
+  # Close audio files 
+  sound1.close()
+  sound2.close()
+  # Unpack strings into an array of values
+  data1 = struct.unpack('{n}h'.format(n=len(data1)/2), data1)
+  data2 = struct.unpack('{n}h'.format(n=len(data2)/2), data2)
+  # Size of frame in samples. 30 ms frame size
+  samplesPerFrame1 = 0.03*frate1
+  samplesPerFrame2 = 0.03*frate2
+  # Divide each signal into overlapping frames
+  framedSignal1 = frameSignal(data1, samplesPerFrame1)
+  framedSignal2 = frameSignal(data2, samplesPerFrame2)
+  # Setup hamming window 
+  hammingWindow1 = np.hamming(samplesPerFrame1)
+  hammingWindow2 = np.hamming(samplesPerFrame2)
+  # Apply the hamming window to each signal
+  hammedSignal1 = applyHammingWindow(framedSignal1, hammingWindow1)
+  hammedSignal2 = applyHammingWindow(framedSignal2, hammingWindow2)
+  # Get the Fourier Transform and power spectrum of each signal
+  ffts1, powerSpectrum1 = getFFTandPower(hammedSignal1)
+  ffts2, powerSpectrum2 = getFFTandPower(hammedSignal2)
+  # Get the mel filterbanks for each power spectrum
+  melFilterBank1 = filterbank(20, len(powerSpectrum1[0]), frate1)
+  melFilterBank2 = filterbank(20, len(powerSpectrum2[0]), frate2)
+  # Apply the mel filterbank
+  filteredSpectrum1 = applyMelFilterBank(powerSpectrum1, melFilterBank1)
+  filteredSpectrum2 = applyMelFilterBank(powerSpectrum2, melFilterBank2)
+  # Apply a discrete cosine transform to get the MFCC values for each frame
+  mfcc1 = applyDCT(filteredSpectrum1, 12);
+  mfcc2 = applyDCT(filteredSpectrum2, 12);
+  # Compare the two sets of MFCC values
+  compareDistances(mfcc1, mfcc2)
 
 # Given a file path, try to read the file using the wave module.
 # If that fails, try converting the file using the provided LAME executable
@@ -41,75 +81,29 @@ def openFile(fileName):
       sys.stderr.write('ERROR: Improper file type.')
       sys.stderr.write(' Both files must be WAVE or MP3.\n')
       sys.exit(-1)
+    # Once we have converted the file, open the newly formed WAVE file
     try:
       sound = wave.open('/tmp/sound.wav', 'r')
     except (wave.Error):
       sys.stderr.write('ERROR: Converted file not readable\n')
       sys.exit(-1)
   return sound
-  
 
-def getFileMetadata(sound1, sound2):
-  # Get the total number of samples from the file
-  size1 = sound1.getnframes()
-  size2 = sound2.getnframes()
-  # read number of frames of size n
-  data1 = sound1.readframes(size1)
-  data2 = sound2.readframes(size2)
-  #instantiate some framerates
-  frate1 = sound1.getframerate()
-  frate2 = sound2.getframerate()
-  # Close audio files 
-  sound1.close()
-  sound2.close()
-  # Unpack strings into an array of values
-  data1 = struct.unpack('{n}h'.format(n=len(data1)/2), data1)
-  data2 = struct.unpack('{n}h'.format(n=len(data2)/2), data2)
-  # Size of frame in samples. 30 ms frame size
-  samplesPerFrame1 = 0.03*frate1
-  samplesPerFrame2 = 0.03*frate2
-  framedSignal1 = frameSignal(data1, samplesPerFrame1)
-  framedSignal2 = frameSignal(data2, samplesPerFrame2)
-  #Calculate FFT values from framed signals
-  # Setup hamming window 
-  hammingWindow1 = np.hamming(samplesPerFrame1)
-  hammingWindow2 = np.hamming(samplesPerFrame2)
-  # Apply the hamming window to each signal
-  hammedSignal1 = applyHammingWindow(framedSignal1, hammingWindow1)
-  hammedSignal2 = applyHammingWindow(framedSignal2, hammingWindow2)
-  # Get the Fourier Transform and power spectrum of each signal
-  ffts1, powerSpectrum1 = getFFTandPower(hammedSignal1)
-  ffts2, powerSpectrum2 = getFFTandPower(hammedSignal2)
-  # Get the mel filterbanks for each power spectrum
-  melFilterBank1 = filterbank(20, len(powerSpectrum1[0]), frate1)
-  melFilterBank2 = filterbank(20, len(powerSpectrum2[0]), frate2)
-  # Apply the mel filterbank
-  filteredSpectrum1 = applyMelFilterBank(powerSpectrum1, melFilterBank1)
-  filteredSpectrum2 = applyMelFilterBank(powerSpectrum2, melFilterBank2)
-  # Apply a discrete cosine transform
-  mfcc1 = applyDCT(filteredSpectrum1, 12);
-  mfcc2 = applyDCT(filteredSpectrum2, 12);
-  # Apply filter to power spectrums to create filtered spectrums
-  #compareEuclid(ffts1, ffts2)
-  #compareEuclid(powerSpectrum1, powerSpectrum2)
-  #frameFrequencies1 = np.fft.fftfreq(int(samplesPerFrame1))
-  #frameFrequencies2 = np.fft.fftfreq(int(samplesPerFrame2))
-  #compare(ffts1[0], ffts2[0], frameFrequencies1, frameFrequencies2)
 
-# Given a power spectrum and a mel filterbank, apply the mel filter bank and
+# Given a power spectrum and a mel filterbank, apply the mel filterbank and
 # then return the log of the result
-def applyMelFilterBank(ps, fb):
+def applyMelFilterBank(powerSpectrum, filterBank):
   filteredSpectrum = []
-  for x in xrange(0, len(ps)):
-    filteredSpectrum.append(np.dot(fb, ps[x]))
+  for x in xrange(0, len(powerSpectrum)):
+    filteredSpectrum.append(np.dot(filterBank, powerSpectrum[x]))
   return np.log10(filteredSpectrum)
 
 # Given a filtered spectrum and a number of cepstrum, applies the
 # DCT to the filtered spectrum, but only keeps num amount of results.
-def applyDCT(fs, num):
+def applyDCT(filteredSpectrum, numCepstrum):
   mfcc = []
-  for x in xrange(0, len(fs)):
-    mfcc.append(dct(fs[x][4:], norm='ortho')[:num])
+  for x in xrange(0, len(filteredSpectrum)):
+    mfcc.append(dct(filteredSpectrum[x][4:], norm='ortho')[:numCepstrum])
   return mfcc 
  
 # Given a signal and number of samples per frame, break up the signal
@@ -141,31 +135,38 @@ def getFFTandPower(signal):
 # If the frame size is less than the hamming window, pad the frame with zeros
 def applyHammingWindow(signal, hammingWindow):
   result = []
+  hamWindowLen = len(hammingWindow)
   for frame in signal:
-    if len(frame) < len(hammingWindow):
+    frameLength = len(frame)
+    if len(frame) < hamWindowLen:
       frame = list(frame)
-      frame[len(frame):len(hammingWindow)] = [0] * (len(hammingWindow) - len(frame))
+      frame[frameLength:hamWindowLen] = [0] * (hamWindowLen - frameLength)
       frame = tuple(frame)
     result.append(frame * hammingWindow)
   return result
 
-# Computer the Mel-Frequency filterbank.  Once that is done, it can be
-# applied to each frame to get the Mel-Frequency Cepstral Coefficients
-# of each frame
-def filterbank(nfilt=20,nfft=512,samplerate=44100,lfreq=0,hfreq=None):
-  hfreq = hfreq or (samplerate/2)
+# Compute the Mel-Frequency filterbank.  This can be applied to each frame
+# to get the Mel-Frequency Cepstral Coefficients of each frame
+def filterbank(nfilt, nfft, samplerate):
+  # The highest recorded frequency, calculated from the sample rate
+  hfreq = samplerate/2
+  # The lowest recorded frequency
+  lfreq = 0
   
+  # Convert the lower and upper frequency values to the mel scale
   lmel = freqToMel(lfreq)
   hmel = freqToMel(hfreq)
+
   melpts = np.linspace(lmel, hmel, nfilt+2)
   fftbin = np.floor((nfft+1)*melToFreq(melpts)/samplerate)
   fbank = np.zeros([nfilt, nfft])
 
+  # Fill the two-dimentional filterbank according to the FFT bins
   for x in xrange(0, nfilt):
-    for y in xrange(int(fftbin[x]),int(fftbin[x+1])):
-      fbank[x,y] = (y - fftbin[x])/(fftbin[x+1]-fftbin[x])
-    for y in xrange(int(fftbin[x+1]),int(fftbin[x+2])):
-      fbank[x,y] = (fftbin[x+2]-y)/(fftbin[x+2]-fftbin[x+1])
+    for y in xrange(int(fftbin[x]), int(fftbin[x + 1])):
+      fbank[x, y] = (y - fftbin[x])/(fftbin[x + 1] - fftbin[x])
+    for y in xrange(int(fftbin[x + 1]), int(fftbin[x + 2])):
+      fbank[x, y] = (fftbin[x + 2] - y)/(fftbin[x + 2] - fftbin[x + 1])
   return fbank
 
 # Convert the given frequency to its mel-scale equivalent
@@ -180,22 +181,38 @@ def melToFreq(mel):
 # between each signal frame and declare a match or not
 def compareDistances(signal1, signal2):
   distances = compareEuclid(signal1, signal2)
-  print distances
-  if sum(distances) < 100000:
+  sigLen1 = len(signal1)
+  sigLen2 = len(signal2)
+  # Compare the number of close frames to the shorter signal
+  if sigLen1 > sigLen2:
+    prop = float(len(distances))/float(sigLen2)
+  else:
+    prop = float(len(distances))/float(sigLen1)
+  if prop > 0.15:
     print 'MATCH'
   else:
     print 'NO MATCH'
   sys.exit(0)
 
-# Input: two two-dimensional arrays of equal length
+# Input: two two-dimensional arrays
 # Compute the euclidean distance between each sub-array
 def compareEuclid(ray1, ray2):
   result = []
-  if len(ray1) != len(ray2):
-    return -1
-  for i in range(len(ray1)):
-    result.append(eDist(ray1[i], ray2[i]))
-  print result
+  length1 = len(ray1)
+  length2 = len(ray2)
+  # If the arrays are of unequal length, then compare all elements of
+  # the shorter array to the corresponding elements of the longer array
+  if length1 > length2:
+    for i in range(len(ray2)):
+      distance = eDist(ray1[i], ray2[i])
+      if distance < 7:
+        result.append(distance)
+  else:
+    for i in range(len(ray1)):
+      distance = eDist(ray1[i], ray2[i])
+      if distance < 7:
+        result.append(distance)
+  return result
 
 # Compute the euclidean distance between two arrays
 # If the lists are of unequal length, compute the euclidean distance
@@ -215,28 +232,9 @@ def eDist(vec1, vec2):
       result = result + dist
   return result
 
-# Compare two sets of FFT and corresponding frequencies
-# Look at the strongest FFT values,
-#  get the frequencies corresponding to those values
-#  check if those frequencies are a subset of the frequencies from
-#  the other audio file
-# The shorter file drives this 
-def compare(w1, w2, f1, f2):
-  sortedFFT = np.sort(w1, kind='mergesort')
-  topFFT = sortedFFT[len(sortedFFT) - 20:]
-  topFFTindices = []
-  topFreqs = []
-  for val in topFFT:
-    topFFTindices.append(np.where(w1==val)[0][0])
-  for i in topFFTindices:
-    topFreqs.append(f1[i])
-  setFreqs = set(topFreqs)
-  if setFreqs.issubset(f2):
-    print "MATCH"
-  else:
-    print "NO MATCH"
-  sys.exit(0)
 
+# If we are calling this program directly, then check the command-line
+# arguments and start the comparison
 if __name__ == '__main__':
   if len(sys.argv) != 5:
     sys.stderr.write('ERROR: Proper command line usage is')

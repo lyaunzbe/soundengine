@@ -7,18 +7,16 @@ Team:
 (4) Eduardo Romeiro, romeiro.e@husky.neu.edu
 
 No compilation needed, simply cd to the directory containing this 
-software's executable and executing a command of the following form:
+software's executable and execute a command of the following form:
 
     ./p4500 -f <pathname> -f <pathname>
 
-This software is written with the Python programming langauge and 
-depends on the following libraries: numpy, wave and a few minor 
-standard libraries (sys, struct).
+This software is written in the Python programming langauge and 
+depends on the following standard libraries: numpy, wave, sys, struct, scipy, 
+subprocess, and math.
 
 To improve on our prototype the following changes will be made:
- 1) Run FFT on windowed segments instead of the whole file.
- 2) Compute the Mel-frequency cepstral coefficients to extract features
-    from the file to obtain an audio fingerprint.
- 3) Compare those fingerprints to find any possible matches.
- 4) Expand our program to handle different types of audio files.
- 6) Remove any egregiously inefficient code.
+ 1) Improve our comparison method by increasing the thoroughness with which
+    we compare the two files
+ 2) Expand our program to handle an arbitrary number of input files.
+ 3) Remove any egregiously inefficient code.

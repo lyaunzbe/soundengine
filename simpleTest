@@ -10,5 +10,7 @@
 ./p4500 -f /course/cs4500f13/Assignments/A4/x7.wav -f /course/cs4500f13/Assignments/A4/x9.wav
 ./p4500 -f /course/cs4500f13/Assignments/A4/x8.wav -f /course/cs4500f13/Assignments/A4/x9.wav
 ./p4500 -f /course/cs4500f13/Assignments/A4/x10.wav -f /course/cs4500f13/Assignments/A4/x11.wav
+./p4500 -f /course/cs4500f13/Assignments/A4/trouble.wav -f /course/cs4500f13/Assignments/A4/x1.wav
 ./p4500 -f /course/cs4500f13/Assignments/A4/x11.wav -f /course/cs4500f13/Assignments/A4/x12.wav
-
+./p4500 -f /course/cs4500f13/Assignments/A4/hewlett.wav -f /course/cs4500f13/Assignments/A4/x1.wav
+./p4500 -f /course/cs4500f13/Assignments/A4/x1.wav -f /course/cs4500f13/Assignments/A4/x9.wav
