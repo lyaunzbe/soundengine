@@ -7,14 +7,14 @@ Eduardo Romeiro
 """
 
 
-import sys, wave, struct, math, subprocess
+import sys, wave, struct, math, subprocess, os
 import numpy as np
 from scipy.fftpack import dct
 
 # Path to LAME executable in the CS4500 course directory
 LAME = '/course/cs4500f13/bin/lame'
 
-
+# TODO: Add rabin-karp on fft windows
 
 # Main method for comparing two given files
 def main(file1, file2):
@@ -75,7 +75,7 @@ def openFile(fileName):
   # the provided LAME executable
   except (wave.Error):
     try:
-      command = [LAME, fileName, '/tmp/sound.wav']
+      command = [LAME, '--quiet', '--decode', '--mp3input', fileName, '/tmp/sound.wav']
       process = subprocess.check_call(command)
     except (subprocess.CalledProcessError):
       sys.stderr.write('ERROR: Improper file type.')
@@ -192,7 +192,12 @@ def compareDistances(signal1, signal2):
     print 'MATCH'
   else:
     print 'NO MATCH'
-  sys.exit(0)
+  # Delete the temporary WAVE file if necessary
+  try:
+    subprocess.check_call('rm /tmp/sound.wav')
+  except OSError:
+    pass
+  #sys.exit(0)
 
 # Input: two two-dimensional arrays
 # Compute the euclidean distance between each sub-array
@@ -237,13 +242,65 @@ def eDist(vec1, vec2):
 # arguments and start the comparison
 if __name__ == '__main__':
   if len(sys.argv) != 5:
-    sys.stderr.write('ERROR: Proper command line usage is')
+    sys.stderr.write('ERROR: Proper command line usage is one of:')
     sys.stderr.write(' "./p4500 -f <pathname> -f <pathname>"\n')
+    sys.stderr.write(' "./p4500 -f <pathname> -d <pathname>"\n')
+    sys.stderr.write(' "./p4500 -d <pathname> -f <pathname>"\n')
+    sys.stderr.write(' "./p4500 -d <pathname> -d <pathname>"\n')
     sys.exit(-1)
   else:
-    if sys.argv[1] != '-f' or sys.argv[3] != '-f':
-      sys.stderr.write('ERROR: Proper command line usage is')
+    if not ((sys.argv[1] == '-f' or sys.argv[1] == '-d') and (sys.argv[3] == '-f' sys.argv[3] == '-d')):
+      sys.stderr.write('ERROR: Proper command line usage is one of:\n')
       sys.stderr.write(' "./p4500 -f <pathname> -f <pathname>"\n')
+      sys.stderr.write(' "./p4500 -f <pathname> -d <pathname>"\n')
+      sys.stderr.write(' "./p4500 -d <pathname> -f <pathname>"\n')
+      sys.stderr.write(' "./p4500 -d <pathname> -d <pathname>"\n')
       sys.exit(-1)
     else:
-      main(sys.argv[2], sys.argv[4])
+      # Run through the different input cases.
+      # If both pathnames are just files, run main then exit
+      if sys.argv[1] == '-f' and sys.argv[3] == '-f':
+        main(sys.argv[2], sys.argv[4])
+        sys.exit(0)
+      # If the second pathname is a directory, then run main for all files in
+      # that directory against the other file provided
+      elif sys.argv[1] == '-f' and sys.argv[3] == '-d':
+        try:
+          files = os.listdir(sys.argv[4])
+        except OSError:
+          # Throw an error if the pathname given after -d is not a directory
+          sys.stderr.write('ERROR: pathname after -d flag must be directory')
+          sys.exit(-1)
+        for song in files:
+          main(sys.argv[2], sys.argv[4] + song)
+        sys.exit(0)
+      # If the first pathname is a directory, then run main for all files in
+      # that directory against the other file provided
+      elif sys.argv[1] == '-d' and sys.argv[3] == '-f':
+        try:
+          files = os.listdir(sys.argv[2])
+        except OSError:
+          sys.stderr.write('ERROR: pathname after -d flag must be directory')
+          sys.exit(-1)
+        for song in files:
+          main(sys.argv[4], sys.argv[2] + song)
+        sys.exit(0)
+      # If both pathnames are directories then check each file in each
+      # directory against each other.
+      elif sys.argv[1] == '-d' and sys.argv[3] == '-d':
+        try:
+          firstDir = os.listdir(sys.argv[2])
+        except OSError:
+          sys.stderr.write('ERROR: pathname after -d flag must be directory')
+          sys.exit(-1)
+        try:
+          secondDir = os.listdir(sys.argv[4])
+        except OSError:
+          sys.stderr.write('ERROR: pathname after -d flag must be directory')
+          sys.exit(-1)
+        for each in firstDir:
+          for song in secondDir:
+            main(sys.argv[2] + each, sys.argv[4] + song)
+        sys.exit(0)
+
+
