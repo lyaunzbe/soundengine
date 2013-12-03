@@ -13,63 +13,93 @@ from scipy.fftpack import dct
 
 # Path to LAME executable in the CS4500 course directory
 LAME = '/course/cs4500f13/bin/lame'
-
-# TODO: Add rabin-karp on fft windows
+# Initialize a global cache for each file
+cache = {}
 
 # Main method for comparing two given files
 def main(file1, file2):
   name1 = getShortName(file1)
   name2 = getShortName(file2)
+  # If either file has already been processed, then take the cached values
+  # Else compute the relevant fingerprint values
+  if file1 in cache:
+    ffts1, powerSpectrum1, mfcc1 = cache[file1]
+  else:
+    fingerprint1 = processRecording(file1)
+    # If the file was empty, report no match and move on
+    if fingerprint1 == -1:
+      print 'NO MATCH'
+      return
+    # cache the relevant fingerprint values
+    cache[file1] = fingerprint1
+    ffts1, powerSpectrum1, mfcc1 = fingerprint1
+  if file2 in cache:
+    ffts2, powerSpectrum2, mfcc2 = cache[file2]
+  else:
+    fingerprint2 = processRecording(file2)
+    # If the file was empty, report no match and move on
+    if fingerprint2 == -1:
+      print 'NO MATCH'
+      return
+    # cache the relevant fingerprint values
+    ffts2, powerSpectrum2, mfcc2 = fingerprint2
+    cache[file2] = [ffts2, powerSpectrum2, mfcc2]
+
+  # Compare the two sets of MFCC values
+  if len(ffts2) > len(ffts1):
+    result = compareDistances(mfcc1, mfcc2, name1, name2, 'mfcc')
+  else:
+    result = compareDistances(mfcc1, mfcc2, name2, name1, 'mfcc')
+  if result == 1:
+      if len(ffts2) > len(ffts1):
+        result = compareDistances(ffts1, ffts2, name1, name2, 'fft')
+      else:
+        result = compareDistances(ffts1, ffts2, name2, name1, 'fft')
+
+
+# Process the recording and get relevant fingerprint values
+# Return -1 if one of the recording is empty
+def processRecording(file1):
+  name1 = getShortName(file1)
   # Open the file described by the given path
   sound1 = openFile(file1, '/tmp/sound1.wav')
-  sound2 = openFile(file2, '/tmp/sound2.wav')
   # Get the total number of samples from the file
   size1 = sound1.getnframes()
-  size2 = sound2.getnframes()
   # read number of frames of size n
   data1 = sound1.readframes(size1)
-  data2 = sound2.readframes(size2)
   #instantiate the framerates
   frate1 = sound1.getframerate()
-  frate2 = sound2.getframerate()
   # Close audio files 
   sound1.close()
-  sound2.close()
+
   # Unpack strings into an array of values
   data1 = struct.unpack('{n}h'.format(n=len(data1)/2), data1)
-  data2 = struct.unpack('{n}h'.format(n=len(data2)/2), data2)
   # Size of frame in samples. 30 ms frame size
   samplesPerFrame1 = 0.03*frate1
-  samplesPerFrame2 = 0.03*frate2
   # Divide each signal into overlapping frames
   framedSignal1 = frameSignal(data1, samplesPerFrame1)
-  framedSignal2 = frameSignal(data2, samplesPerFrame2)
   # Setup hamming window 
   hammingWindow1 = np.hamming(samplesPerFrame1)
-  hammingWindow2 = np.hamming(samplesPerFrame2)
   # Apply the hamming window to each signal
   hammedSignal1 = applyHammingWindow(framedSignal1, hammingWindow1)
-  hammedSignal2 = applyHammingWindow(framedSignal2, hammingWindow2)
   # Get the Fourier Transform and power spectrum of each signal
   ffts1, powerSpectrum1 = getFFTandPower(hammedSignal1)
-  ffts2, powerSpectrum2 = getFFTandPower(hammedSignal2)
+  
+  # If the file is empty, return -1 so a non-match can be reported
+  if len(powerSpectrum1) == 0:
+    return -1
+
   # Get the mel filterbanks for each power spectrum
-  if len(powerSpectrum1) == 0 or len(powerSpectrum2) == 0:
-    print 'NO MATCH'
-    return
   melFilterBank1 = filterbank(20, len(powerSpectrum1[0]), frate1)
-  melFilterBank2 = filterbank(20, len(powerSpectrum2[0]), frate2)
   # Apply the mel filterbank
   filteredSpectrum1 = applyMelFilterBank(powerSpectrum1, melFilterBank1)
-  filteredSpectrum2 = applyMelFilterBank(powerSpectrum2, melFilterBank2)
   # Apply a discrete cosine transform to get the MFCC values for each frame
   mfcc1 = applyDCT(filteredSpectrum1, 12)
-  mfcc2 = applyDCT(filteredSpectrum2, 12)
-  # Compare the two sets of MFCC values
-  if len(data2) > len(data1):
-    compareDistances(mfcc1, mfcc2, name1, name2)
-  else:
-    compareDistances(mfcc1, mfcc2, name2, name1)
+  return ffts1, powerSpectrum1, mfcc1
+
+
+
+################## Reading in WAVE or MP3 files ##################
 
 # Given a file path, try to read the file using the wave module.
 # If that fails, try converting the file using the provided LAME executable
@@ -84,10 +114,11 @@ def openFile(fileName, tempName):
   # the provided LAME executable
   except (wave.Error, EOFError, IOError), msg:
     if 'Is a directory' in msg:
+      sys.stderr.write('ERROR: ')
       sys.stderr.write(fileName + ' cannot contain subdirectories.\n')
       sys.exit(-1)
     try:
-      command = [LAME, '--quiet', '--decode', '--mp3input', fileName, tempName]
+      command = [LAME,'--quiet','--decode','--mp3input',fileName,tempName]
       process = subprocess.check_call(command)
     except (subprocess.CalledProcessError):
       sys.stderr.write('ERROR: Improper file type.')
@@ -102,13 +133,8 @@ def openFile(fileName, tempName):
   return sound
 
 
-# Given a power spectrum and a mel filterbank, apply the mel filterbank and
-# then return the log of the result
-def applyMelFilterBank(powerSpectrum, filterBank):
-  filteredSpectrum = []
-  for x in xrange(0, len(powerSpectrum)):
-    filteredSpectrum.append(np.dot(filterBank, powerSpectrum[x]))
-  return np.log10(filteredSpectrum)
+
+################# Signal processing helpers #################
 
 # Given a filtered spectrum and a number of cepstrum, applies the
 # DCT to the filtered spectrum, but only keeps num amount of results.
@@ -157,6 +183,18 @@ def applyHammingWindow(signal, hammingWindow):
     result.append(frame * hammingWindow)
   return result
 
+
+############## MFCC Calculation functions ##############
+
+
+# Given a power spectrum and a mel filterbank, apply the mel filterbank and
+# then return the log of the result
+def applyMelFilterBank(powerSpectrum, filterBank):
+  filteredSpectrum = []
+  for x in xrange(0, len(powerSpectrum)):
+    filteredSpectrum.append(np.dot(filterBank, powerSpectrum[x]))
+  return np.log10(filteredSpectrum)
+
 # Compute the Mel-Frequency filterbank.  This can be applied to each frame
 # to get the Mel-Frequency Cepstral Coefficients of each frame
 def filterbank(nfilt, nfft, samplerate):
@@ -189,20 +227,31 @@ def freqToMel(freq):
 def melToFreq(mel):
   return 700 * (10**(mel / 2595.0 - 1))
 
+
+################### Comparison functions ###################
+
 # Given two sets of MFCC values, compute the euclidean distances
 # between each signal frame and declare a match or not
-def compareDistances(signal1, signal2, name1, name2):
-  distances = compareEuclid(signal1, signal2)
+# valueType indications which values have been passed to the function
+# this can be either 'mfcc' or 'fft'.  Mostly significant for compareEuclid
+def compareDistances(signal1, signal2, name1, name2, valueType):
+  distances = compareEuclid(signal1, signal2, valueType)
   sigLen1 = len(signal1)
   sigLen2 = len(signal2)
+  val = 0
   # Compare the number of close frames to the shorter signal
   if sigLen1 > sigLen2:
     prop = float(len(distances))/float(sigLen2)
   else:
     prop = float(len(distances))/float(sigLen1)
-  if prop > 0.15:
-    print 'MATCH ', name1, ' ', name2
-  else:
+  if prop > 0.1:
+    # If this is the second match, report a match
+    # Else, set return value to 1 for further comparison
+    if valueType == 'fft':
+      print 'MATCH ', name1, name2
+    else:
+      val = 1
+  else: # These files failed a preliminary test, so report no match
     print 'NO MATCH'
   # Delete the temporary WAVE file if necessary
   try:
@@ -213,25 +262,33 @@ def compareDistances(signal1, signal2, name1, name2):
     os.remove('/tmp/sound2.wav')
   except OSError:
     pass
-  return
+  # Return either 0 (no match) or 1 (match)
+  return val
 
 # Input: two two-dimensional arrays
 # Compute the euclidean distance between each sub-array
-def compareEuclid(ray1, ray2):
+# valueType can be either 'mfcc' or 'fft' and indicates which value
+# to use for comparison
+def compareEuclid(ray1, ray2, valueType):
   result = []
   length1 = len(ray1)
   length2 = len(ray2)
+  comp = 0
+  if valueType == 'mfcc':
+    comp = 7
+  elif valueType == 'fft':
+    comp = 1e+11
   # If the arrays are of unequal length, then compare all elements of
   # the shorter array to the corresponding elements of the longer array
   if length1 > length2:
     for i in range(len(ray2)):
       distance = eDist(ray1[i], ray2[i])
-      if distance < 7:
+      if abs(distance) < comp:
         result.append(distance)
   else:
     for i in range(len(ray1)):
       distance = eDist(ray1[i], ray2[i])
-      if distance < 7:
+      if abs(distance) < comp:
         result.append(distance)
   return result
 
@@ -253,6 +310,11 @@ def eDist(vec1, vec2):
       result = result + dist
   return result
 
+
+
+##################### Filename formatting #####################
+
+
 # Return the full path to a file in a given directory
 def formatPathname(folder, fileName):
   if len(folder) == 0:
@@ -270,6 +332,61 @@ def getShortName(fileName):
   else:
     return splitName[len(splitName) - 1]
 
+################ Parse command-line arguments ################
+
+# Parse the given input arguments and act accordingly
+def parseArguments(argv):
+  # Run through the different input cases.
+  # If both pathnames are just files, run main then exit
+  if argv[1] == '-f' and argv[3] == '-f':
+    main(argv[2], argv[4])
+    sys.exit(0)
+    # If the second pathname is a directory, then run main for all files in
+    # that directory against the other file provided
+  elif argv[1] == '-f' and argv[3] == '-d':
+    try:
+      files = os.listdir(argv[4])
+    except OSError:
+      # Throw an error if the pathname given after -d is not a directory
+      sys.stderr.write('ERROR: pathname after -d flag must be directory\n')
+      sys.exit(-1)
+    for song in files:
+      fileName = formatPathname(argv[4], song)
+      main(argv[2], fileName)
+    sys.exit(0)
+  # If the first pathname is a directory, then run main for all files in
+  # that directory against the other file provided
+  elif argv[1] == '-d' and argv[3] == '-f':
+    try:
+      files = os.listdir(argv[2])
+    except OSError:
+      sys.stderr.write('ERROR: pathname after -d flag must be directory\n')
+      sys.exit(-1)
+    for song in files:
+      fileName = formatPathname(argv[2], song)
+      main(argv[4], fileName)
+    sys.exit(0)
+  # If both pathnames are directories then check each file in each
+  # directory against each other.
+  elif argv[1] == '-d' and argv[3] == '-d':
+    try:
+      firstDir = os.listdir(argv[2])
+    except OSError:
+      sys.stderr.write('ERROR: pathname after -d flag must be directory\n')
+      sys.exit(-1)
+    try:
+      secondDir = os.listdir(argv[4])
+    except OSError:
+      sys.stderr.write('ERROR: pathname after -d flag must be directory\n')
+      sys.exit(-1)
+    for each in firstDir:
+      eachName = formatPathname(argv[2], each)
+      for song in secondDir:
+        songName = formatPathname(argv[4], song)
+        main(eachName, songName)
+    sys.exit(0)
+
+
 # If we are calling this program directly, then check the command-line
 # arguments and start the comparison
 if __name__ == '__main__':
@@ -281,7 +398,8 @@ if __name__ == '__main__':
     sys.stderr.write(' ./p4500 -d <pathname> -d <pathname>\n')
     sys.exit(-1)
   else:
-    if not ((sys.argv[1] == '-f' or sys.argv[1] == '-d') and (sys.argv[3] == '-f' or sys.argv[3] == '-d')):
+    if not ((sys.argv[1] == '-f' or sys.argv[1] == '-d') and 
+            (sys.argv[3] == '-f' or sys.argv[3] == '-d')):
       sys.stderr.write('ERROR: Proper command line usage is one of:\n')
       sys.stderr.write(' ./p4500 -f <pathname> -f <pathname>\n')
       sys.stderr.write(' ./p4500 -f <pathname> -d <pathname>\n')
@@ -289,54 +407,7 @@ if __name__ == '__main__':
       sys.stderr.write(' ./p4500 -d <pathname> -d <pathname>\n')
       sys.exit(-1)
     else:
-      # Run through the different input cases.
-      # If both pathnames are just files, run main then exit
-      if sys.argv[1] == '-f' and sys.argv[3] == '-f':
-        main(sys.argv[2], sys.argv[4])
-        sys.exit(0)
-      # If the second pathname is a directory, then run main for all files in
-      # that directory against the other file provided
-      elif sys.argv[1] == '-f' and sys.argv[3] == '-d':
-        try:
-          files = os.listdir(sys.argv[4])
-        except OSError:
-          # Throw an error if the pathname given after -d is not a directory
-          sys.stderr.write('ERROR: pathname after -d flag must be directory\n')
-          sys.exit(-1)
-        for song in files:
-          fileName = formatPathname(sys.argv[4], song)
-          main(sys.argv[2], fileName)
-        sys.exit(0)
-      # If the first pathname is a directory, then run main for all files in
-      # that directory against the other file provided
-      elif sys.argv[1] == '-d' and sys.argv[3] == '-f':
-        try:
-          files = os.listdir(sys.argv[2])
-        except OSError:
-          sys.stderr.write('ERROR: pathname after -d flag must be directory\n')
-          sys.exit(-1)
-        for song in files:
-          fileName = formatPathname(sys.argv[2], song)
-          main(sys.argv[4], fileName)
-        sys.exit(0)
-      # If both pathnames are directories then check each file in each
-      # directory against each other.
-      elif sys.argv[1] == '-d' and sys.argv[3] == '-d':
-        try:
-          firstDir = os.listdir(sys.argv[2])
-        except OSError:
-          sys.stderr.write('ERROR: pathname after -d flag must be directory\n')
-          sys.exit(-1)
-        try:
-          secondDir = os.listdir(sys.argv[4])
-        except OSError:
-          sys.stderr.write('ERROR: pathname after -d flag must be directory\n')
-          sys.exit(-1)
-        for each in firstDir:
-          eachName = formatPathname(sys.argv[2], each)
-          for song in secondDir:
-            songName = formatPathname(sys.argv[4], song)
-            main(eachName, songName)
-        sys.exit(0)
+      # Parse the input arguments and compare files accordingly
+      parseArguments(sys.argv)
 
 
