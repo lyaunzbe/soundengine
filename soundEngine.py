@@ -21,8 +21,8 @@ def main(file1, file2):
   name1 = getShortName(file1)
   name2 = getShortName(file2)
   # Open the file described by the given path
-  sound1 = openFile(file1)
-  sound2 = openFile(file2)
+  sound1 = openFile(file1, '/tmp/sound1.wav')
+  sound2 = openFile(file2, '/tmp/sound2.wav')
   # Get the total number of samples from the file
   size1 = sound1.getnframes()
   size2 = sound2.getnframes()
@@ -75,7 +75,8 @@ def main(file1, file2):
 # If that fails, try converting the file using the provided LAME executable
 # If THAT fails, then the file is neither an MP3 file nor a WAVE file, and
 # an error should be thrown
-def openFile(fileName):
+# tempName is the name for the temporary canonical WAVE file
+def openFile(fileName, tempName):
   # Try opening the file using the wave module
   try:
     sound = wave.open(fileName, 'r')
@@ -86,7 +87,7 @@ def openFile(fileName):
       sys.stderr.write(fileName + ' cannot contain subdirectories.\n')
       sys.exit(-1)
     try:
-      command = [LAME, '--quiet', '--decode', '--mp3input', fileName, '/tmp/sound.wav']
+      command = [LAME, '--quiet', '--decode', '--mp3input', fileName, tempName]
       process = subprocess.check_call(command)
     except (subprocess.CalledProcessError):
       sys.stderr.write('ERROR: Improper file type.')
@@ -94,7 +95,7 @@ def openFile(fileName):
       sys.exit(-1)
     # Once we have converted the file, open the newly formed WAVE file
     try:
-      sound = wave.open('/tmp/sound.wav', 'r')
+      sound = wave.open(tempName, 'r')
     except (wave.Error):
       sys.stderr.write('ERROR: Converted file not readable\n')
       sys.exit(-1)
@@ -205,7 +206,11 @@ def compareDistances(signal1, signal2, name1, name2):
     print 'NO MATCH'
   # Delete the temporary WAVE file if necessary
   try:
-    os.remove('/tmp/sound.wav')
+    os.remove('/tmp/sound1.wav')
+  except OSError:
+    pass
+  try:
+    os.remove('/tmp/sound2.wav')
   except OSError:
     pass
   return
