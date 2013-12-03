@@ -18,6 +18,8 @@ LAME = '/course/cs4500f13/bin/lame'
 
 # Main method for comparing two given files
 def main(file1, file2):
+  name1 = getShortName(file1)
+  name2 = getShortName(file2)
   # Open the file described by the given path
   sound1 = openFile(file1)
   sound2 = openFile(file2)
@@ -52,16 +54,22 @@ def main(file1, file2):
   ffts1, powerSpectrum1 = getFFTandPower(hammedSignal1)
   ffts2, powerSpectrum2 = getFFTandPower(hammedSignal2)
   # Get the mel filterbanks for each power spectrum
+  if len(powerSpectrum1) == 0 or len(powerSpectrum2) == 0:
+    print 'NO MATCH'
+    return
   melFilterBank1 = filterbank(20, len(powerSpectrum1[0]), frate1)
   melFilterBank2 = filterbank(20, len(powerSpectrum2[0]), frate2)
   # Apply the mel filterbank
   filteredSpectrum1 = applyMelFilterBank(powerSpectrum1, melFilterBank1)
   filteredSpectrum2 = applyMelFilterBank(powerSpectrum2, melFilterBank2)
   # Apply a discrete cosine transform to get the MFCC values for each frame
-  mfcc1 = applyDCT(filteredSpectrum1, 12);
-  mfcc2 = applyDCT(filteredSpectrum2, 12);
+  mfcc1 = applyDCT(filteredSpectrum1, 12)
+  mfcc2 = applyDCT(filteredSpectrum2, 12)
   # Compare the two sets of MFCC values
-  compareDistances(mfcc1, mfcc2)
+  if len(data2) > len(data1):
+    compareDistances(mfcc1, mfcc2, name1, name2)
+  else:
+    compareDistances(mfcc1, mfcc2, name2, name1)
 
 # Given a file path, try to read the file using the wave module.
 # If that fails, try converting the file using the provided LAME executable
@@ -73,7 +81,10 @@ def openFile(fileName):
     sound = wave.open(fileName, 'r')
   # If the wave module cannot open the file, try converting to WAVE using
   # the provided LAME executable
-  except (wave.Error):
+  except (wave.Error, EOFError, IOError), msg:
+    if 'Is a directory' in msg:
+      sys.stderr.write(fileName + ' cannot contain subdirectories.\n')
+      sys.exit(-1)
     try:
       command = [LAME, '--quiet', '--decode', '--mp3input', fileName, '/tmp/sound.wav']
       process = subprocess.check_call(command)
@@ -179,7 +190,7 @@ def melToFreq(mel):
 
 # Given two sets of MFCC values, compute the euclidean distances
 # between each signal frame and declare a match or not
-def compareDistances(signal1, signal2):
+def compareDistances(signal1, signal2, name1, name2):
   distances = compareEuclid(signal1, signal2)
   sigLen1 = len(signal1)
   sigLen2 = len(signal2)
@@ -189,15 +200,15 @@ def compareDistances(signal1, signal2):
   else:
     prop = float(len(distances))/float(sigLen1)
   if prop > 0.15:
-    print 'MATCH'
+    print 'MATCH ', name1, ' ', name2
   else:
     print 'NO MATCH'
   # Delete the temporary WAVE file if necessary
   try:
-    subprocess.check_call('rm /tmp/sound.wav')
+    os.remove('/tmp/sound.wav')
   except OSError:
     pass
-  #sys.exit(0)
+  return
 
 # Input: two two-dimensional arrays
 # Compute the euclidean distance between each sub-array
@@ -237,24 +248,40 @@ def eDist(vec1, vec2):
       result = result + dist
   return result
 
+# Return the full path to a file in a given directory
+def formatPathname(folder, fileName):
+  if len(folder) == 0:
+    return fileName
+  elif folder[len(folder) - 1] == '/':
+    return folder + fileName
+  else:
+    return folder + '/' + fileName
+
+# Return the short name of a file path
+def getShortName(fileName):
+  splitName = fileName.split('/')
+  if len(splitName) == 0:
+    return splitName
+  else:
+    return splitName[len(splitName) - 1]
 
 # If we are calling this program directly, then check the command-line
 # arguments and start the comparison
 if __name__ == '__main__':
   if len(sys.argv) != 5:
-    sys.stderr.write('ERROR: Proper command line usage is one of:')
-    sys.stderr.write(' "./p4500 -f <pathname> -f <pathname>"\n')
-    sys.stderr.write(' "./p4500 -f <pathname> -d <pathname>"\n')
-    sys.stderr.write(' "./p4500 -d <pathname> -f <pathname>"\n')
-    sys.stderr.write(' "./p4500 -d <pathname> -d <pathname>"\n')
+    sys.stderr.write('ERROR: Proper command line usage is one of:\n')
+    sys.stderr.write(' ./p4500 -f <pathname> -f <pathname>\n')
+    sys.stderr.write(' ./p4500 -f <pathname> -d <pathname>\n')
+    sys.stderr.write(' ./p4500 -d <pathname> -f <pathname>\n')
+    sys.stderr.write(' ./p4500 -d <pathname> -d <pathname>\n')
     sys.exit(-1)
   else:
-    if not ((sys.argv[1] == '-f' or sys.argv[1] == '-d') and (sys.argv[3] == '-f' sys.argv[3] == '-d')):
+    if not ((sys.argv[1] == '-f' or sys.argv[1] == '-d') and (sys.argv[3] == '-f' or sys.argv[3] == '-d')):
       sys.stderr.write('ERROR: Proper command line usage is one of:\n')
-      sys.stderr.write(' "./p4500 -f <pathname> -f <pathname>"\n')
-      sys.stderr.write(' "./p4500 -f <pathname> -d <pathname>"\n')
-      sys.stderr.write(' "./p4500 -d <pathname> -f <pathname>"\n')
-      sys.stderr.write(' "./p4500 -d <pathname> -d <pathname>"\n')
+      sys.stderr.write(' ./p4500 -f <pathname> -f <pathname>\n')
+      sys.stderr.write(' ./p4500 -f <pathname> -d <pathname>\n')
+      sys.stderr.write(' ./p4500 -d <pathname> -f <pathname>\n')
+      sys.stderr.write(' ./p4500 -d <pathname> -d <pathname>\n')
       sys.exit(-1)
     else:
       # Run through the different input cases.
@@ -269,10 +296,11 @@ if __name__ == '__main__':
           files = os.listdir(sys.argv[4])
         except OSError:
           # Throw an error if the pathname given after -d is not a directory
-          sys.stderr.write('ERROR: pathname after -d flag must be directory')
+          sys.stderr.write('ERROR: pathname after -d flag must be directory\n')
           sys.exit(-1)
         for song in files:
-          main(sys.argv[2], sys.argv[4] + song)
+          fileName = formatPathname(sys.argv[4], song)
+          main(sys.argv[2], fileName)
         sys.exit(0)
       # If the first pathname is a directory, then run main for all files in
       # that directory against the other file provided
@@ -280,10 +308,11 @@ if __name__ == '__main__':
         try:
           files = os.listdir(sys.argv[2])
         except OSError:
-          sys.stderr.write('ERROR: pathname after -d flag must be directory')
+          sys.stderr.write('ERROR: pathname after -d flag must be directory\n')
           sys.exit(-1)
         for song in files:
-          main(sys.argv[4], sys.argv[2] + song)
+          fileName = formatPathname(sys.argv[2], song)
+          main(sys.argv[4], fileName)
         sys.exit(0)
       # If both pathnames are directories then check each file in each
       # directory against each other.
@@ -291,16 +320,18 @@ if __name__ == '__main__':
         try:
           firstDir = os.listdir(sys.argv[2])
         except OSError:
-          sys.stderr.write('ERROR: pathname after -d flag must be directory')
+          sys.stderr.write('ERROR: pathname after -d flag must be directory\n')
           sys.exit(-1)
         try:
           secondDir = os.listdir(sys.argv[4])
         except OSError:
-          sys.stderr.write('ERROR: pathname after -d flag must be directory')
+          sys.stderr.write('ERROR: pathname after -d flag must be directory\n')
           sys.exit(-1)
         for each in firstDir:
+          eachName = formatPathname(sys.argv[2], each)
           for song in secondDir:
-            main(sys.argv[2] + each, sys.argv[4] + song)
+            songName = formatPathname(sys.argv[4], song)
+            main(eachName, songName)
         sys.exit(0)
 
 
